@@ -1,0 +1,21 @@
+# Binaries & build artifacts
+dpi_engine
+dpi_engine.exe
+build/
+bin/
+*.o
+*.obj
+*.exe
+
+# Capture files / test pcaps (uncomment if you wish to exclude test captures)
+# *.pcap
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
