@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DPI Engine – packet inspector</title>
+<meta name="description" content="A C++ deep packet inspection engine. It finds the website inside every HTTPS handshake, names the app and blocks it. Try it in your browser.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#0a1736;--deep:#050d24;--blue:#1d4fa8;--sky:#52b9ff;--yel:#ffd21f;--red:#ff5a4d;--ease:cubic-bezier(.34,1.56,.64,1)}
+*{box-sizing:border-box;margin:0}
+html{scroll-behavior:smooth}
+body{font:500 18px/1.5 Fredoka,system-ui,sans-serif;color:#fff;background:var(--deep);overflow-x:hidden}
+a{color:inherit}button{font:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--yel);outline-offset:3px}
+.wrap{width:100%;max-width:1080px;margin:0 auto;padding:0 24px;position:relative;z-index:3}
+.scene{position:relative;overflow:hidden}
+.layer{position:absolute;inset:0;pointer-events:none}
+.st,.cloud{position:absolute;left:0;top:0;will-change:transform}
+.st{background:#fff;border-radius:50%;animation:tw 3s ease-in-out infinite}
+@keyframes tw{50%{opacity:.25}}
+.cloud{background:#fff;border-radius:99px}
+.cloud:before,.cloud:after{content:"";position:absolute;background:#fff;border-radius:50%}
+.cloud:before{left:16%;top:-70%;width:42%;height:150%}
+.cloud:after{left:46%;top:-95%;width:34%;height:175%}
+/* loader */
+#boot{position:fixed;inset:0;background:var(--deep);z-index:99;display:grid;place-items:center;font-size:44px;font-weight:700;transition:transform .8s cubic-bezier(.7,0,.2,1)}
+#boot span{animation:pulse .6s ease-in-out infinite alternate}
+@keyframes pulse{to{transform:scale(1.15);color:var(--yel)}}
+#boot.go{transform:translateY(-100%)}
+/* nav */
+header{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;justify-content:space-between;align-items:center;padding:12px 28px;background:#0a1736d9;backdrop-filter:blur(8px)}
+header b{font-size:24px;font-weight:700}
+header nav{display:flex;gap:26px}
+.roll{display:inline-block;height:1.5em;overflow:hidden;text-decoration:none;font-weight:600;letter-spacing:.04em}
+.roll span{display:block;transition:transform .35s var(--ease)}
+.roll:hover span,.roll:focus-visible span{transform:translateY(-50%)}
+/* buttons */
+.cta{display:inline-flex;gap:12px;align-items:center;background:var(--yel);color:var(--navy);font-weight:700;padding:14px 26px;border-radius:999px;border:0;text-decoration:none;overflow:hidden;transition:transform .3s var(--ease),background .2s}
+.cta i{font-style:normal;display:inline-block;transition:transform .3s var(--ease)}
+.cta:hover{transform:scale(1.06) rotate(-1.5deg);background:#fff}
+.cta:hover i{transform:translateX(7px)}
+.cta.ghost{background:transparent;color:#fff;box-shadow:inset 0 0 0 2px #fff}
+.cta.ghost:hover{background:#fff;color:var(--navy)}
+/* reveal */
+[data-in]{opacity:0;transition:opacity .5s,transform .8s var(--ease)}
+[data-in=pop]{transform:scale(.6)}[data-in=left]{transform:translateX(-90px)}[data-in=right]{transform:translateX(90px)}[data-in=up]{transform:translateY(60px)}
+[data-in].on{opacity:1;transform:none}
+/* hero */
+#hero{min-height:100vh;display:flex;align-items:center;background:linear-gradient(#050d24,#0f2a63 65%,#2a63c4);padding:120px 0 150px}
+#hero h1{font-size:clamp(64px,13vw,170px);line-height:.9;font-weight:700;letter-spacing:-.03em}
+#hero p{max-width:30ch;font-size:clamp(20px,2.4vw,28px);margin:22px 0 32px;color:#d4e4ff}
+#hero .row{display:flex;gap:14px;flex-wrap:wrap}
+.ufo{position:absolute;right:9%;top:17%;width:clamp(130px,22vw,300px);animation:ufo 7s ease-in-out infinite alternate;z-index:2}
+@keyframes ufo{0%{transform:translate(0,0) rotate(-5deg)}50%{transform:translate(-5vw,26px) rotate(4deg)}100%{transform:translate(2vw,-18px) rotate(-3deg)}}
+.beam{animation:beam 1.6s ease-in-out infinite alternate}@keyframes beam{from{opacity:.15}to{opacity:.55}}
+.lt{animation:bl 1s steps(2) infinite}.lt:nth-child(2){animation-delay:.3s}.lt:nth-child(3){animation-delay:.6s}@keyframes bl{50%{fill:#fff}}
+.robo{overflow:visible;position:absolute;right:6%;bottom:-6px;width:clamp(120px,19vw,250px);z-index:2}
+.arm{transform-origin:12px 12px;animation:wave 1.2s ease-in-out infinite alternate}
+.arm.l{animation-delay:.4s;transform-origin:88px 12px}
+@keyframes wave{from{transform:rotate(-20deg)}to{transform:rotate(35deg)}}
+.arm.l{animation-name:waveL}@keyframes waveL{from{transform:rotate(20deg)}to{transform:rotate(-35deg)}}
+.eye{animation:blink 4s infinite;transform-origin:center;transform-box:fill-box}@keyframes blink{94%,100%{transform:scaleY(1)}97%{transform:scaleY(.1)}}
+/* sky + tv */
+#sky{background:linear-gradient(#2a63c4,#52b9ff 18%,#9bdcff 70%,#cdeeff);color:var(--navy);padding:110px 0 70px}
+#sky h2,#rev h2,#mount h2{font-size:clamp(36px,6vw,72px);line-height:1;font-weight:700;letter-spacing:-.02em;margin-bottom:12px}
+#sky .intro{max-width:52ch;margin-bottom:40px;font-size:20px}
+.balloon{position:absolute;width:clamp(70px,11vw,150px);animation:bob 5s ease-in-out infinite alternate;z-index:1}
+@keyframes bob{from{transform:translateY(0) rotate(-4deg)}to{transform:translateY(-34px) rotate(4deg)}}
+.tv{position:relative;z-index:3;max-width:960px;margin:0 auto}
+.bezel{background:#e9eef8;border-radius:34px;padding:22px 22px 14px;box-shadow:0 0 0 6px var(--navy),0 30px 0 -6px #0a173655}
+.screen{background:#0f2350;border-radius:20px;color:#fff;padding:22px;min-height:460px;overflow:hidden;box-shadow:inset 0 0 40px #000a}
+.screen.tune{animation:tune .45s}
+@keyframes tune{0%{filter:brightness(3) contrast(2);transform:scaleY(.04)}60%{filter:brightness(1.6);transform:scaleY(1.04)}100%{filter:none;transform:none}}
+.ch{display:none}.ch.on{display:block}
+.ch h3{font-size:24px;margin-bottom:6px}.ch .sub{color:#9fb8ee;margin-bottom:16px;font-size:16px}
+.ctl{display:flex;justify-content:center;align-items:center;gap:16px;padding-top:12px}
+.ctl button.ar{background:var(--navy);color:var(--yel);border:0;width:40px;height:40px;border-radius:50%;font-size:20px;font-weight:700;transition:transform .25s var(--ease)}
+.ctl button.ar:hover{transform:scale(1.2)}
+.dots{display:flex;gap:10px}.dots button{width:16px;height:16px;border-radius:50%;border:0;background:#a9b8d8;transition:all .3s var(--ease)}
+.dots button.on{background:var(--yel);transform:scale(1.4);box-shadow:0 0 0 3px var(--navy)}
+.badge{position:absolute;right:-18px;top:-26px;z-index:4;width:92px;height:92px;border-radius:50%;background:var(--yel);color:var(--navy);display:grid;place-items:center;text-align:center;font-weight:700;line-height:1.05;transform:rotate(14deg);animation:wob 3s ease-in-out infinite alternate;box-shadow:0 0 0 4px var(--navy)}
+@keyframes wob{to{transform:rotate(-8deg) scale(1.07)}}
+.feet{display:flex;justify-content:space-between;padding:0 12%}.feet i{width:46px;height:20px;background:var(--navy);border-radius:0 0 12px 12px}
+/* demo inside tv */
+.dm{display:grid;grid-template-columns:230px 1fr;gap:20px}
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px}
+.chips input{position:absolute;opacity:0}
+.chips label{padding:5px 12px;border-radius:99px;background:#1b3677;cursor:pointer;font-size:15px;user-select:none;transition:transform .25s var(--ease)}
+.chips label:hover{transform:scale(1.08)}
+.chips input:checked+label{background:var(--red);text-decoration:line-through}
+.chips input:focus-visible+label{outline:3px solid var(--yel)}
+.dm h4{font-size:15px;color:#9fb8ee;margin-bottom:8px;font-weight:500}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.stats div{background:#1b3677;border-radius:12px;padding:8px 10px}.stats b{font-size:26px;display:block;line-height:1.1}.stats span{font-size:12px;color:#9fb8ee}
+.flows{height:190px;overflow:auto;background:#07122c;border-radius:12px;padding:6px 0;font-size:13.5px}
+.flows .r{display:grid;grid-template-columns:118px 1fr 84px 74px;gap:8px;padding:3px 12px;animation:rin .3s var(--ease)}
+@keyframes rin{from{opacity:0;transform:translateX(30px)}}
+.flows .r:first-child{color:#7e97d0}.ok{color:#7ff0a8;font-weight:600}.no{color:var(--red);font-weight:700}
+.flows .empty{padding:78px 16px;text-align:center;color:#7e97d0}
+.bars{margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:5px 22px}
+.bar{display:grid;grid-template-columns:76px 1fr 22px;gap:8px;align-items:center;font-size:13px}
+.bar i{display:block;height:10px;border-radius:5px;background:var(--sky);width:0;transition:width .7s var(--ease)}.bar.x i{background:var(--red)}
+.xin{width:100%;font:600 20px Fredoka,sans-serif;padding:12px 16px;border:0;border-radius:14px;background:#fff;color:var(--navy);margin:4px 0 14px}
+.verdict{font-size:30px;font-weight:700}
+.hex{font:500 15px/2 ui-monospace,Menlo,Consolas,monospace;word-break:break-all;background:#07122c;border-radius:12px;padding:12px 14px;margin-top:14px}
+.hex s{text-decoration:none;padding:2px 4px;border-radius:5px;margin-right:2px;color:var(--navy)}
+.t1{background:#ffb199}.t2{background:#ffe07a}.t3{background:#9fe8c4}.t4{background:var(--sky)}
+.key{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:#9fb8ee;margin-top:8px}
+.pipe{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.pipe div{background:#1b3677;border-radius:16px;padding:16px;position:relative}.pipe b{display:block;margin-bottom:4px}.pipe p{font-size:14.5px;color:#c6d6f8}
+.pipe div+div:before{content:"›";position:absolute;left:-12px;top:50%;color:var(--yel);font-size:26px;font-weight:700;animation:nudge .8s ease-in-out infinite alternate}
+@keyframes nudge{to{transform:translateX(5px)}}
+/* reviews */
+#rev{background:linear-gradient(#cdeeff,#7cc4f3 30%,#2a63c4);color:var(--navy);padding:30px 0 90px}
+#rev h2{color:var(--navy)}
+.mq{overflow:hidden;margin-top:30px;padding:20px 0 30px}
+.track{display:flex;gap:26px;width:max-content;animation:mq 45s linear infinite}
+.mq:hover .track{animation-play-state:paused}
+@keyframes mq{to{transform:translateX(-50%)}}
+.card{width:300px;background:#fff;border-radius:22px;padding:22px;position:relative;transition:transform .3s var(--ease)}
+.card:hover{transform:translateY(-8px) rotate(-1.5deg)}
+.card:after{content:"";position:absolute;left:34px;bottom:-14px;border:14px solid transparent;border-top-color:#fff;border-bottom:0}
+.card p{font-size:17px}.card b{display:block;margin-top:10px;color:var(--blue)}
+/* mountains */
+#mount{background:linear-gradient(#2a63c4,#ff9d6c 70%,#ffd27a);padding:90px 0 0}
+#mount .wrap{padding-bottom:30px}
+#mount p.lead{max-width:48ch;font-size:20px;margin-bottom:30px}
+.tech{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:28px}
+.tech span{background:#fff;color:var(--navy);padding:8px 18px;border-radius:99px;font-weight:600;animation:bob 3s ease-in-out infinite alternate;animation-delay:var(--d)}
+.mt{position:relative;height:clamp(240px,34vw,430px)}
+.mt svg{position:absolute;left:0;bottom:-2px;width:100%;height:100%}
+.flag{transform-origin:1162px 62px;animation:flag 2s ease-in-out infinite alternate;transform-box:view-box}
+@keyframes flag{from{transform:skewY(-6deg)}to{transform:skewY(6deg)}}
+.ground{background:#0f2350;padding:20px 0 90px;position:relative;z-index:3}
+.papers{display:grid;grid-template-columns:1fr 1fr;gap:34px;max-width:900px;margin:-40px auto 0;padding:0 24px;position:relative;z-index:4}
+.paper{color:var(--navy);padding:34px 30px;border-radius:6px;box-shadow:0 14px 0 -4px #0006;position:relative;transition:transform .4s var(--ease)}
+.paper h3{font-size:30px;margin-bottom:8px}
+.paper.w{background:#fff;transform:rotate(-2.5deg)}.paper.y{background:#ffe45c;transform:rotate(2.5deg)}
+.paper:hover{transform:rotate(0) scale(1.04)}
+.paper:before{content:"";position:absolute;top:-14px;left:40%;width:90px;height:28px;background:#ffffffaa;transform:rotate(-3deg)}
+/* contact */
+#contact{background:linear-gradient(var(--navy),var(--deep));padding:110px 0 0;min-height:100vh}
+#contact h2{font-size:clamp(36px,6vw,72px);line-height:1;margin-bottom:34px;font-weight:700}
+.mailbox{display:grid;grid-template-columns:420px 1fr;gap:50px;align-items:center;padding-bottom:70px}
+.mail{position:relative;width:min(400px,100%);height:540px;margin-top:20px;transition:transform 1.1s cubic-bezier(.6,-.3,.8,.6),opacity 1.1s}
+.mail>*{position:absolute;left:0;right:0}
+.eb{bottom:0;height:150px;background:#d9a441;border-radius:8px}
+.ef{bottom:0;height:150px;background:#ffcf5a;border-radius:8px;clip-path:polygon(0 0,50% 52%,100% 0,100% 100%,0 100%);z-index:3;pointer-events:none}
+.fl{bottom:60px;height:90px;background:#e9b24a;clip-path:polygon(0 0,100% 0,50% 100%);transform-origin:top;transform:rotateX(180deg);z-index:1;transition:transform .5s}
+.fl.shut{transform:none;z-index:4}
+.letter{bottom:100px;height:400px;background:#fff;color:var(--navy);border-radius:6px;padding:22px 24px;z-index:2;transform-origin:50% 0;transition:transform .8s cubic-bezier(.6,0,.3,1);font-size:19px;line-height:1.7}
+.letter.in{transform:translateY(365px) scale(.34)}
+.letter label{display:block}.letter input,.letter textarea{display:block;font:600 18px Fredoka,sans-serif;color:var(--blue);border:0;border-bottom:3px dashed #9db4e6;background:transparent;width:100%;padding:2px 4px;outline:0;resize:none}
+.letter input:focus,.letter textarea:focus{border-bottom-color:var(--yel)}
+.fld{position:relative}.fld.bad:after{content:"!";position:absolute;right:0;top:0;color:var(--red);font-size:26px;font-weight:700}
+.fld.bad{animation:shake .4s}@keyframes shake{25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
+.letter .cta{margin-top:6px;padding:8px 22px}
+.mail.fly{transform:translate(70vw,-90vh) rotate(28deg) scale(.15);opacity:0}
+.thanks{display:none;font-size:30px;font-weight:700;line-height:1.2}.thanks.on{display:block;animation:rin .6s var(--ease)}
+.info p{margin-bottom:14px;color:#c6d6f8}.info b{color:#fff;font-size:22px;display:block}
+.links{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
+footer{position:relative;z-index:3;padding:22px 24px 30px;text-align:center;font-size:14px;color:#7e97d0}
+@media(max-width:860px){.dm{grid-template-columns:1fr}.pipe{grid-template-columns:1fr 1fr}.pipe div:before{display:none}.papers,.mailbox{grid-template-columns:1fr}.mail{margin:60px auto 0}.flows .r{grid-template-columns:100px 1fr 66px 62px;font-size:12px;gap:5px;padding:3px 8px}.screen{padding:16px}.badge{right:-6px;width:74px;height:74px;font-size:13px}header nav a:nth-child(n+4){display:none}header nav{gap:16px}.robo{display:none}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}html{scroll-behavior:auto}[data-in]{opacity:1;transform:none}#boot{display:none}}
+</style>
+</head>
+<body>
+<div id="boot"><span>DPI</span></div>
+<header><b>DPI Engine</b><nav>
+<a class="roll" href="#hero"><span>HOME<br>HOME</span></a><a class="roll" href="#sky"><span>DEMO<br>DEMO</span></a><a class="roll" href="#mount"><span>ABOUT<br>ABOUT</span></a><a class="roll" href="#contact"><span>CONTACT<br>CONTACT</span></a></nav></header>
+
+<section class="scene" id="hero">
+<div class="layer" data-s="-.25" id="starsB"></div><div class="layer" data-s="-.5" id="starsF"></div>
+<svg class="ufo" data-s=".15" viewBox="0 0 300 260" aria-hidden="true"><polygon class="beam" points="110,120 190,120 260,255 40,255" fill="#bfe8ff"/><ellipse cx="150" cy="82" rx="58" ry="40" fill="#9be7ff" opacity=".9"/><ellipse cx="150" cy="104" rx="132" ry="30" fill="#c8d4ee"/><ellipse cx="150" cy="116" rx="118" ry="16" fill="#7d8db3"/><g><circle class="lt" cx="62" cy="108" r="8" fill="var(--yel)"/><circle class="lt" cx="150" cy="116" r="8" fill="var(--yel)"/><circle class="lt" cx="238" cy="108" r="8" fill="var(--yel)"/></g></svg>
+<div class="wrap">
+<h1 data-in="pop">Hello!</h1>
+<p data-in="up">DPI Engine reads the website name hiding inside every HTTPS connection, tells you which app it is, and blocks it.</p>
+<div class="row" data-in="up"><a class="cta" href="#sky">Try the demo <i>→</i></a><a class="cta ghost" href="https://github.com/Pratyaksh0x1/DPI-Engine" target="_blank" rel="noopener">View code</a></div>
+</div>
+<svg class="robo" viewBox="-16 0 132 136" aria-hidden="true"><g class="arm"><rect x="2" y="58" width="12" height="40" rx="6" fill="#c8d4ee" transform="rotate(8 8 60)"/></g><g class="arm l"><rect x="86" y="58" width="12" height="40" rx="6" fill="#c8d4ee" transform="rotate(-8 92 60)"/></g><rect x="16" y="56" width="68" height="80" rx="16" fill="#e9eef8"/><rect x="34" y="78" width="32" height="20" rx="6" fill="var(--blue)"/><circle cx="50" cy="88" r="5" fill="var(--yel)"/><rect x="22" y="14" width="56" height="42" rx="14" fill="#e9eef8"/><line x1="50" y1="14" x2="50" y2="2" stroke="#c8d4ee" stroke-width="4"/><circle cx="50" cy="3" r="4" fill="var(--red)"/><ellipse class="eye" cx="38" cy="34" rx="6" ry="8" fill="var(--navy)"/><ellipse class="eye" cx="62" cy="34" rx="6" ry="8" fill="var(--navy)"/></svg>
+</section>
+
+<section class="scene" id="sky">
+<div class="layer" id="clouds"></div>
+<svg class="balloon" style="left:3%;top:12%" data-s=".2" viewBox="0 0 100 140" aria-hidden="true"><ellipse cx="50" cy="48" rx="40" ry="46" fill="#ff5a4d"/><path d="M50 2c-22 18-22 76 0 92 22-16 22-74 0-92z" fill="#ffd21f"/><path d="M26 82l14 22h20l14-22" fill="none" stroke="#0a1736" stroke-width="2"/><rect x="38" y="104" width="24" height="18" rx="3" fill="#8a5a2b"/></svg>
+<svg class="balloon" style="right:2%;top:30%;width:clamp(60px,9vw,120px)" data-s=".35" viewBox="0 0 100 140" aria-hidden="true"><ellipse cx="50" cy="48" rx="40" ry="46" fill="#7ff0a8"/><path d="M50 2c-22 18-22 76 0 92 22-16 22-74 0-92z" fill="#1d4fa8"/><path d="M26 82l14 22h20l14-22" fill="none" stroke="#0a1736" stroke-width="2"/><rect x="38" y="104" width="24" height="18" rx="3" fill="#8a5a2b"/></svg>
+<div class="wrap">
+<h2 data-in="left">Block an app. Watch it drop.</h2>
+<p class="intro" data-in="right">Flip the channel to explore. It replays a sample capture from the repo in your browser, so nothing is installed or uploaded.</p>
+<div class="tv" data-in="up"><div class="badge">C++<br>17</div>
+<div class="bezel"><div class="screen" id="screen">
+<div class="ch on"><h3>Channel 1: Block apps</h3><div class="sub">Pick what to ban, then run the capture.</div>
+<div class="dm"><div><h4>Blocked apps</h4><div class="chips" id="chips"></div><h4>Blocked IP</h4><div class="chips"><input type="checkbox" id="ipb" checked><label for="ipb">192.168.1.50</label></div><button class="cta" id="run" style="width:100%;justify-content:center">Run capture <i>→</i></button></div>
+<div><div class="stats"><div><b id="sT">0</b><span>packets</span></div><div><b id="sF">0</b><span>forwarded</span></div><div><b id="sD">0</b><span>dropped</span></div><div><b id="sA">0</b><span>apps found</span></div></div>
+<div class="flows" id="flows" aria-live="polite"><div class="empty">No capture yet.</div></div><div class="bars" id="bars"></div></div></div></div>
+<div class="ch"><h3>Channel 2: The name is in plain text</h3><div class="sub">The browser's first message says which site it wants. Type any domain.</div>
+<label for="sni" class="sub">Domain in the Client Hello</label><input class="xin" id="sni" value="www.youtube.com" autocomplete="off" spellcheck="false">
+<div class="verdict" id="vd"></div><div class="sub" id="vd2"></div>
+<div class="hex" id="hex"></div><div class="key"><span><s class="hex t1">&nbsp;</s> extension type</span><span><s class="hex t2">&nbsp;</s> lengths</span><span><s class="hex t3">&nbsp;</s> name type</span><span><s class="hex t4">&nbsp;</s> the domain</span></div></div>
+<div class="ch"><h3>Channel 3: One packet's trip</h3><div class="sub">Each connection's five-tuple is hashed, so all its packets reach the same worker and the block stays consistent.</div>
+<div class="pipe"><div><b>Reader</b><p>Opens the PCAP and pulls packets one by one.</p></div><div><b>Load balancers</b><p>Hash IPs, ports and protocol.</p></div><div><b>Fast paths</b><p>Parse, track the flow, read the SNI, check rules.</p></div><div><b>Writer</b><p>Forwarded packets go to the output PCAP.</p></div></div></div>
+</div>
+<div class="ctl"><button class="ar" id="prev" aria-label="Previous channel">‹</button><div class="dots" id="dots"></div><button class="ar" id="next" aria-label="Next channel">›</button></div></div>
+<div class="feet"><i></i><i></i></div></div>
+</div></section>
+
+<section class="scene" id="rev"><div class="wrap"><h2 data-in="left">What it's used for</h2></div>
+<div class="mq"><div class="track" id="track"></div></div></section>
+
+<section class="scene" id="mount">
+<div class="wrap"><h2 data-in="left">Under the hood</h2>
+<p class="lead" data-in="right">Written from scratch. Single-threaded for learning, multi-threaded for big captures.</p>
+<div class="tech" id="tech"></div>
+<a class="cta" href="https://github.com/Pratyaksh0x1/DPI-Engine" target="_blank" rel="noopener">Read the code <i>→</i></a></div>
+<div class="mt">
+<svg data-c data-s=".08" viewBox="0 0 1440 400" preserveAspectRatio="xMidYMax slice" aria-hidden="true"><path d="M0 400V230L170 120l160 100 190-130 200 140 210-110 190 90 120-60 200 120v200z" fill="#8fa8e8"/></svg>
+<svg data-c data-s=".16" viewBox="0 0 1440 400" preserveAspectRatio="xMidYMax slice" aria-hidden="true"><path d="M0 400V270L240 150l180 110 230-140 220 150 240-120 330 160v190z" fill="#4a68b8"/></svg>
+<svg data-c data-s=".26" viewBox="0 0 1440 400" preserveAspectRatio="xMidYMax slice" aria-hidden="true"><path d="M0 400V300L200 210l210 80 250-150 200 120 120-30 180-120 210 140 190-50v200z" fill="#1f3a7d"/><line x1="1160" y1="112" x2="1160" y2="42" stroke="#fff" stroke-width="4"/><path class="flag" d="M1162 42h70l-16 20 16 20h-70z" fill="#ffd21f"/><text x="1168" y="68" font-size="16" font-weight="700" fill="#0a1736" font-family="Fredoka,sans-serif">DPI</text></svg>
+</div>
+<div class="ground"><div class="papers">
+<div class="paper w" data-in="left"><h3>Meet DPI Engine</h3><p>HTTPS hides what you read, not where you're going. This engine finds the one plain-text hint, the site name, and turns it into rules you control.</p></div>
+<div class="paper y" data-in="right"><h3>Built by Pratyaksh Tomar</h3><p>Computer engineering student at AKTU. Networking, C++ and a lot of Wireshark captures.</p></div>
+</div></div></section>
+
+<section class="scene" id="contact">
+<div class="layer" data-s="-.2" id="starsC"></div>
+<div class="wrap"><div class="mailbox">
+<div><h2 data-in="left">Write a letter.</h2>
+<div class="mail" id="mail"><div class="eb"></div><div class="fl" id="fl"></div>
+<form class="letter" id="letter" novalidate><div>Dear Pratyaksh,</div>
+<div class="fld"><label>My name is <input id="fn" autocomplete="name"></label></div>
+<div class="fld"><label>mail me back at <input id="fe" type="email" autocomplete="email"></label></div>
+<div class="fld"><label>I would like to: <textarea id="fm" rows="1"></textarea></label></div>
+<button class="cta" type="submit">SEND <i>→</i></button></form>
+<div class="ef"></div></div>
+<div class="thanks" id="thanks">You just made a first step to a better network.<br><button class="cta" id="back" style="margin-top:14px">Write another</button></div></div>
+<div class="info" data-in="right"><p>Questions about the engine, a collaboration, or a sample capture you want inspected? Send a note.</p><b>Source code</b><p>Every file is on GitHub, with a README that walks through each step.</p>
+<div class="links"><a class="cta" href="https://github.com/Pratyaksh0x1/DPI-Engine" target="_blank" rel="noopener">GitHub <i>→</i></a><a class="cta ghost" href="#hero">Back to top</a></div></div>
+</div></div>
+<footer>© 2026 DPI Engine, Pratyaksh Tomar. Illustrated in the style of boy-coy.com.</footer>
+</section>
+
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const EMAIL="you@example.com"; // <- put your real email here
+addEventListener("load",()=>setTimeout(()=>$("#boot").classList.add("go"),650));
+
+/* particles: every star and cloud has its own speed (DOM transforms) */
+const P=[];
+function stars(id,n,max,vmax,op){const L=$(id);for(let i=0;i<n;i++){const e=document.createElement("i");e.className="st";const s=1+Math.random()*max;e.style.cssText=`width:${s}px;height:${s}px;opacity:${op*(.5+Math.random()*.5)};animation-delay:${Math.random()*3}s`;L.appendChild(e);P.push({e,x:Math.random()*innerWidth,y:Math.random()*L.clientHeight*1.1,v:.04+Math.random()*vmax,w:s})}}
+stars("#starsB",70,2,.12,.8);stars("#starsF",32,3.5,.4,1);stars("#starsC",60,3,.3,1);
+(()=>{const L=$("#clouds");for(let i=0;i<13;i++){const e=document.createElement("div");e.className="cloud";const near=Math.random(),w=90+near*230;e.style.cssText=`width:${w}px;height:${w*.28}px;opacity:${.55+near*.4}`;L.appendChild(e);P.push({e,x:Math.random()*innerWidth,y:60+Math.random()*(L.clientHeight-160),v:.12+near*.9,w})}})();
+let last=performance.now();
+function loop(t){const dt=Math.min(40,t-last)/16.7;last=t;for(const p of P){p.x+=p.v*dt;if(p.x>innerWidth+10)p.x=-p.w-10;p.e.style.transform=`translate3d(${p.x}px,${p.y}px,0)`}requestAnimationFrame(loop)}
+requestAnimationFrame(loop);
+
+/* parallax on scroll */
+const par=$$("[data-s]");let tick=false;
+function scrolled(){tick=false;const h=innerHeight;for(const e of par){const r=e.parentElement.getBoundingClientRect();if(r.bottom<-300||r.top>h+300)continue;let y=(r.top+r.height/2-h/2)*e.dataset.s;if(e.hasAttribute('data-c'))y=Math.max(0,y);e.style.translate=`0 ${y}px`}}
+addEventListener("scroll",()=>{if(!tick){tick=true;requestAnimationFrame(scrolled)}},{passive:true});scrolled();
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add("on");io.unobserve(e.target)}}),{threshold:.2});
+$$("[data-in]").forEach(e=>io.observe(e));
+
+/* app signatures (same logic as types.cpp) */
+const APPS=[["Google",["google","gstatic","googleapis","ggpht","gvt1"]],["YouTube",["youtube","ytimg","youtu.be","yt3.ggpht"]],["Facebook",["facebook","fbcdn","fb.com","fbsbx","meta.com"]],["Instagram",["instagram","cdninstagram"]],["WhatsApp",["whatsapp","wa.me"]],["Twitter",["twitter","twimg","x.com","t.co"]],["Netflix",["netflix","nflxvideo","nflximg"]],["Amazon",["amazon","amazonaws","cloudfront","aws"]],["Microsoft",["microsoft","msn.com","office","azure","live.com","outlook","bing"]],["Apple",["apple","icloud","mzstatic","itunes"]],["Telegram",["telegram","t.me"]],["TikTok",["tiktok","tiktokcdn","musical.ly","bytedance"]],["Spotify",["spotify","scdn.co"]],["Zoom",["zoom"]],["Discord",["discord","discordapp"]],["GitHub",["github","githubusercontent"]],["Cloudflare",["cloudflare","cf-"]]];
+const SUF=new Set(["x.com","t.co","t.me","wa.me","fb.com","meta.com","youtu.be","scdn.co","msn.com","live.com"]);
+function classify(s){s=(s||"").trim().toLowerCase();if(!s)return"Unknown";for(const[n,ks]of APPS)for(const k of ks)if(SUF.has(k)?(s===k||s.endsWith("."+k)):s.includes(k))return n;return"Unknown"}
+const TLS=[["142.250.185.206","www.google.com"],["142.250.185.110","www.youtube.com"],["157.240.1.35","www.facebook.com"],["157.240.1.174","www.instagram.com"],["104.244.42.65","twitter.com"],["52.94.236.248","www.amazon.com"],["23.52.167.61","www.netflix.com"],["140.82.114.4","github.com"],["104.16.85.20","discord.com"],["99.86.0.100","www.tiktok.com"],["35.186.224.47","open.spotify.com"],["192.0.78.24","www.cloudflare.com"],["13.107.42.14","www.microsoft.com"],["17.253.144.10","www.apple.com"]];
+const FLOWS=[...TLS.map(([d,s])=>({src:"192.168.1.100",dst:d,sni:s,proto:"HTTPS",pk:4})),{src:"192.168.1.100",sni:"example.com",proto:"HTTP",pk:3},{src:"192.168.1.100",sni:"",proto:"DNS",pk:4},{src:"192.168.1.50",sni:"",proto:"HTTPS",pk:5}];
+const chips=$("#chips");
+[...new Set(TLS.map(f=>classify(f[1])))].forEach(a=>chips.insertAdjacentHTML("beforeend",`<input type="checkbox" id="b-${a}" value="${a}"${a==="YouTube"?" checked":""}><label for="b-${a}">${a}</label>`));
+let timer;
+function bars(apps,ban){const m=Math.max(...Object.values(apps));$("#bars").innerHTML=Object.entries(apps).sort((a,b)=>(ban.has(b[0])-ban.has(a[0]))||b[1]-a[1]).slice(0,8).map(([a,n])=>`<div class="bar${ban.has(a)?" x":""}"><span>${a}</span><i data-w="${n/m*100}"></i><span>${n}</span></div>`).join("");requestAnimationFrame(()=>requestAnimationFrame(()=>$$(".bar i").forEach(e=>e.style.width=e.dataset.w+"%")))}
+$("#run").onclick=()=>{clearTimeout(timer);
+ const ban=new Set($$("#chips input:checked").map(i=>i.value)),ip=$("#ipb").checked,box=$("#flows");
+ box.innerHTML='<div class="r"><span>Source</span><span>Domain seen</span><span>App</span><span>Verdict</span></div>';$("#bars").innerHTML="";
+ let T=0,F=0,D=0,i=0;const apps={};
+ const set=()=>{$("#sT").textContent=T;$("#sF").textContent=F;$("#sD").textContent=D;$("#sA").textContent=Object.keys(apps).filter(a=>!["Unknown","DNS","HTTP","HTTPS"].includes(a)).length};set();
+ (function step(){if(i>=FLOWS.length){bars(apps,ban);return}
+  const f=FLOWS[i++],c=f.sni?classify(f.sni):"Unknown",app=f.proto==="DNS"?"DNS":c!=="Unknown"?c:(f.sni?f.proto:"Unknown"),drop=(ip&&f.src==="192.168.1.50")||ban.has(app);
+  T+=f.pk;drop?D+=f.pk:F+=f.pk;apps[app]=(apps[app]||0)+f.pk;
+  box.insertAdjacentHTML("beforeend",`<div class="r"><span>${f.src}</span><span>${f.sni||(f.proto==="DNS"?"(dns query)":"(no SNI)")}</span><span>${app}</span><span class="${drop?"no":"ok"}">${drop?"DROP":"FORWARD"}</span></div>`);
+  box.scrollTop=box.scrollHeight;set();timer=setTimeout(step,110)})()};
+
+/* SNI x-ray */
+const hx=n=>n.toString(16).padStart(2,"0");
+function xray(){const s=$("#sni").value.trim(),b=[...new TextEncoder().encode(s)],n=b.length,w=v=>[hx(v>>8),hx(v&255)],sp=(c,a)=>`<s class="${c}">${a.join(" ")}</s>`;
+ $("#hex").innerHTML=n?sp("t1",["00","00"])+sp("t2",w(n+5))+sp("t2",w(n+3))+sp("t3",["00"])+sp("t2",w(n))+sp("t4",b.map(hx)):"Type a domain to see its bytes.";
+ const a=classify(s);$("#vd").textContent=n?(a==="Unknown"?"No known app":a):"";$("#vd2").textContent=n?(a==="Unknown"?"Counted as plain HTTPS.":"Matched by the engine's domain signatures."):""}
+$("#sni").oninput=xray;xray();
+
+/* TV channels */
+const chs=$$(".ch"),dots=$("#dots");let cur=0;
+chs.forEach((_,i)=>{const b=document.createElement("button");b.setAttribute("aria-label","Channel "+(i+1));b.onclick=()=>go(i);dots.appendChild(b)});
+function go(i){cur=(i+chs.length)%chs.length;const sc=$("#screen");sc.classList.remove("tune");void sc.offsetWidth;sc.classList.add("tune");chs.forEach((c,k)=>c.classList.toggle("on",k===cur));[...dots.children].forEach((d,k)=>d.classList.toggle("on",k===cur))}
+$("#prev").onclick=()=>go(cur-1);$("#next").onclick=()=>go(cur+1);go(0);
+
+/* use-case marquee + tech chips */
+const USE=[["ISPs","Throttle or block certain applications, like BitTorrent."],["Enterprises","Block social media on office networks."],["Parental controls","Block inappropriate websites at the network edge."],["Security","Spot malware or intrusion attempts in traffic."],["Learning","The README explains every step a packet takes."],["Big captures","Switch to the multi-threaded build for large files."]];
+$("#track").innerHTML=[...USE,...USE].map(([a,t])=>`<div class="card"><p>${t}</p><b>${a}</b></div>`).join("");
+$("#tech").innerHTML=["C++17","std::thread","Thread-safe queues","PCAP files","TLS Client Hello","Five-tuple hashing","CMake"].map((t,i)=>`<span style="--d:${i*.35}s">${t}</span>`).join("");
+
+/* envelope letter */
+const mail=$("#mail"),letter=$("#letter"),fl=$("#fl");
+letter.onsubmit=e=>{e.preventDefault();let ok=true;
+ [["fn"],["fe"],["fm"]].forEach(([id])=>{const f=$("#"+id),bad=!f.value.trim()||(id==="fe"&&!/^\S+@\S+\.\S+$/.test(f.value));f.closest(".fld").classList.remove("bad");if(bad){void f.offsetWidth;f.closest(".fld").classList.add("bad");ok=false}});
+ if(!ok)return;
+ letter.classList.add("in");
+ setTimeout(()=>fl.classList.add("shut"),850);
+ setTimeout(()=>mail.classList.add("fly"),1500);
+ setTimeout(()=>{mail.style.display="none";$("#thanks").classList.add("on");
+  location.href=`mailto:${EMAIL}?subject=${encodeURIComponent("Hello from "+$("#fn").value)}&body=${encodeURIComponent($("#fm").value+"\n\nReply to: "+$("#fe").value)}`},2600)};
+$("#back").onclick=()=>{$("#thanks").classList.remove("on");mail.style.display="";mail.classList.remove("fly");letter.classList.remove("in");fl.classList.remove("shut");letter.reset()};
+</script>
+</body>
+</html>
